@@ -16,6 +16,7 @@ import math
 import pdb
 from tqdm import tqdm
 from typing import List
+import os
 
 def train(batch_size: int=64,
           num_time_steps: int=1000,
@@ -26,7 +27,7 @@ def train(batch_size: int=64,
           checkpoint_path: str=None):
     set_seed(random.randint(0, 2**32-1)) if seed == -1 else set_seed(seed)
 
-    train_dataset = datasets.MNIST(root='./data', train=True, download=False,transform=transforms.ToTensor())
+    train_dataset = datasets.MNIST(root='./data', train=True, download=True, transform=transforms.ToTensor())
     #sub_dataset = Subset(train_dataset, list(range(1024)))
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, drop_last=True, num_workers=4)
 
@@ -41,6 +42,8 @@ def train(batch_size: int=64,
         optimizer.load_state_dict(checkpoint['optimizer'])
     criterion = nn.MSELoss(reduction='mean')
 
+    os.makedirs('checkpoints', exist_ok=True)
+    
     for i in range(num_epochs):
         total_loss = 0
         for bidx, (x,_) in enumerate(tqdm(train_loader, desc=f"Epoch {i+1}/{num_epochs}")):
@@ -59,12 +62,13 @@ def train(batch_size: int=64,
             ema.update(model)
         print(f'Epoch {i+1} | Loss {total_loss / (60000/batch_size):.5f}')
 
-    checkpoint = {
-        'weights': model.state_dict(),
-        'optimizer': optimizer.state_dict(),
-        'ema': ema.state_dict()
-    }
-    torch.save(checkpoint, 'checkpoints/ddpm_checkpoint2')
+        checkpoint = {
+            'weights': model.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'ema': ema.state_dict()
+        }
+        
+        torch.save(checkpoint, 'checkpoints/ddpm_checkpoint')
 
 def inference(checkpoint_path: str=None,
               num_time_steps: int=1000,
@@ -97,11 +101,11 @@ def inference(checkpoint_path: str=None,
             x = rearrange(x.squeeze(0), 'c h w -> h w c').detach()
             x = x.numpy()
             plt.imshow(x)
-            plt.show()
-            display_reverse(images)
+            plt.savefig(f'images/foo{i}.png')
+            display_reverse(images, i)
             images = []
 
-def display_reverse(images: List):
+def display_reverse(images: List, num):
     fig, axes = plt.subplots(1, 10, figsize=(10,1))
     for i, ax in enumerate(axes.flat):
         x = images[i].squeeze(0)
@@ -110,10 +114,12 @@ def display_reverse(images: List):
         ax.imshow(x)
         ax.axis('off')
     plt.show()
+    plt.savefig(f'images/progress{num}.png')
 
 def main():
-    #train(checkpoint_path='checkpoints/ddpm_checkpoint', lr=2e-6, num_epochs=5)
-    inference('checkpoints/ddpm_checkpoint2')
+    train(checkpoint_path='checkpoints/ddpm_checkpoint', lr=2e-6, num_epochs=30)
+    #inference('checkpoints/ddpm_checkpoint')
 
 if __name__ == '__main__':
     main()
+ 
